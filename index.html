@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Espectro Winamp - Video Flotante + Partículas Grandes</title>
+    <title>Espectro Winamp - Icono Discreto</title>
     <style>
         body {
             background-color: #000;
@@ -16,42 +16,39 @@
             justify-content: center;
         }
 
-        #controls {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            padding: 15px;
-            background: rgba(0,0,0,0.7);
-            backdrop-filter: blur(8px);
-            z-index: 10;
-            display: flex;
-            justify-content: center;
-            gap: 30px;
+        /* Icono único pequeño y discreto en esquina superior izquierda */
+        #startBtn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 40px;
+    height: 40px;
+    background: rgba(17, 17, 17, 0.7);
+    color: #0f0;
+    border: 1px solid #0f0;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 10;
+    backdrop-filter: blur(4px);
+    font-size: 20px;
+    display: flex;                  /* ← AÑADE ESTO */
+    align-items: center;            /* ← AÑADE ESTO */
+    justify-content: center;        /* ← AÑADE ESTO */
+    padding: 0;                     /* ← AÑADE ESTO (elimina padding interno) */
+    display: flex;
+    align-items: center;     /* Centra verticalmente */
+    justify-content: center; /* Centra horizontalmente */
+    padding: 0;              /* Elimina padding que desplaza el contenido */
+    line-height: 1;          /* Asegura que no haya espacio extra en la línea */
+}
+
+        #startBtn:hover {
+            background: rgba(0, 255, 0, 0.3);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
+            transform: scale(1.1);
         }
 
-        button {
-            padding: 12px 24px;
-            font-size: 18px;
-            background: #111;
-            color: #0f0;
-            border: 2px solid #0f0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        button:hover {
-            background: #0f0;
-            color: #000;
-        }
-
-        /* Modo Día: colores más apagados */
-        body.day-mode .bar {
-            filter: brightness(0.7) saturate(0.8);
-        }
-
-        /* Modo Noche: colores brillantes */
         .bar {
             filter: brightness(1.2) saturate(1.5);
             box-shadow: 0 0 15px rgba(0,255,0,0.7);
@@ -113,7 +110,6 @@
             opacity: 1;
         }
 
-        /* Canvas para partículas (debajo de las barras) */
         #particlesCanvas {
             position: absolute;
             top: 0;
@@ -124,14 +120,23 @@
             z-index: 1;
         }
 
-        /* Video flotante en esquina superior derecha */
+        #oscilloscopeCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+        }
+
         #pipVideo {
             position: absolute;
-            top: 80px;                    /* Debajo de los botones */
+            top: 80px;
             left: 50%;
-            transform: translateX(-50%);  /* Centrado horizontal perfecto */
-            width: 600px;                 /* Más ancho para que se vea bien en el centro */
-            height: 338px;                /* Ratio 16:9 */
+            transform: translateX(-50%);
+            width: 600px;
+            height: 338px;
             border: 4px solid #0f0;
             border-radius: 16px;
             box-shadow: 0 0 30px rgba(0,255,0,0.9);
@@ -139,19 +144,20 @@
             display: none;
             object-fit: cover;
             background: #000;
+            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+            will-change: transform, box-shadow;
         }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <button id="startBtn">Capturar Audio + Video</button>
-        <button id="themeBtn">Modo Día</button>
-    </div>
+    <!-- Icono único sin texto -->
+    <button id="startBtn" title="Capturar Audio + Video">▶</button>
 
     <video id="pipVideo" playsinline muted></video>
 
     <div class="vu-container">
         <canvas id="particlesCanvas"></canvas>
+        <canvas id="oscilloscopeCanvas"></canvas>
         <div class="vu-meter">
             <div class="bars" id="spectrumBars"></div>
         </div>
@@ -159,7 +165,6 @@
 
     <script>
         const startBtn = document.getElementById('startBtn');
-        const themeBtn = document.getElementById('themeBtn');
         const pipVideo = document.getElementById('pipVideo');
         let audioContext, analyser, source;
         let bars = [], peaks = [], peakValues = [];
@@ -167,13 +172,13 @@
         const sensitivity = 0.8;
 
         const bandRanges = [
-            { low: 4000, high: 12000 },
-            { low: 2000, high: 4000 },
-            { low: 600,  high: 2000 },
-            { low: 300,  high: 600 },
-            { low: 150,  high: 300 },
-            { low: 60,   high: 150 },
-            { low: 20,   high: 60 }
+            { low: 8000, high: 16000 },
+            { low: 4000, high: 8000 },
+            { low: 1000, high: 4000 },
+            { low: 300,  high: 1000 },
+            { low: 80,   high: 300 },
+            { low: 40,   high: 80 },
+            { low: 20,   high: 40 }
         ];
 
         function createBars() {
@@ -193,11 +198,6 @@
         }
         createBars();
 
-        themeBtn.addEventListener('click', () => {
-            document.body.classList.toggle('day-mode');
-            themeBtn.textContent = document.body.classList.contains('day-mode') ? 'Modo Noche' : 'Modo Día';
-        });
-
         startBtn.addEventListener('click', async () => {
             if (audioContext) {
                 alert('Ya está capturando. Recarga la página para cambiar fuente.');
@@ -205,7 +205,7 @@
             }
 
             startBtn.disabled = true;
-            startBtn.textContent = 'Capturando...';
+            startBtn.innerHTML = '●'; // Cambia a punto rojo mientras captura
 
             try {
                 const stream = await navigator.mediaDevices.getDisplayMedia({
@@ -213,13 +213,11 @@
                     audio: true
                 });
 
-                // Mostrar video en vivo en la ventana flotante
                 pipVideo.srcObject = stream;
-                pipVideo.muted = true; // Evita eco/duplicado
+                pipVideo.muted = true;
                 pipVideo.play();
                 pipVideo.style.display = 'block';
 
-                // Analizar solo el audio
                 audioContext = new AudioContext();
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 8192;
@@ -232,7 +230,7 @@
             } catch (err) {
                 alert('Captura cancelada. Marca "Compartir audio".');
                 startBtn.disabled = false;
-                startBtn.textContent = 'Capturar Audio + Video';
+                startBtn.innerHTML = '▶';
             }
         });
 
@@ -250,19 +248,28 @@
                 }
                 let avg = count > 0 ? sum / count : 0;
                 avg *= sensitivity;
-                if (i <= 1) avg *= 1.5;
+                if (i <= 1) avg *= 1.6;
                 bands.push(Math.min(avg, 255));
             }
             return bands;
         }
 
+        let particleIntensity = 0.05;
+        let currentScale = 1;
+        let targetScale = 1;
+        let currentGlow = 30;
+        let targetGlow = 30;
+
         function draw() {
             if (!analyser) return;
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(dataArray);
+            const timeDataArray = new Uint8Array(analyser.fftSize);
+            analyser.getByteTimeDomainData(timeDataArray);
 
             const bands = calculateCustomBands(dataArray, analyser.frequencyBinCount);
             updateSpectrum(bands);
+            drawCircularOscilloscope(timeDataArray);
 
             requestAnimationFrame(draw);
         }
@@ -273,6 +280,15 @@
             bassLevel = Math.max(bassLevel, 0.05);
 
             particleIntensity = bassLevel;
+
+            targetScale = 1 + bassLevel * 0.2;
+            targetGlow = 30 + bassLevel * 70;
+
+            currentScale += (targetScale - currentScale) * 0.3;
+            currentGlow += (targetGlow - currentGlow) * 0.3;
+
+            pipVideo.style.transform = `translateX(-50%) scale(${currentScale.toFixed(3)})`;
+            pipVideo.style.boxShadow = `0 0 ${currentGlow.toFixed(0)}px rgba(0,255,0,${0.9 + bassLevel * 0.6})`;
 
             for (let i = 0; i < numBands; i++) {
                 const height = (bands[i] / 255) * maxHeight;
@@ -297,26 +313,80 @@
         }
 
         // ========================
+        // OSCILOSCOPIO CIRCULAR SIMÉTRICO
+        // ========================
+        const oscCanvas = document.getElementById("oscilloscopeCanvas");
+        const oscCtx = oscCanvas.getContext("2d");
+
+        function resizeOscCanvas() {
+            oscCanvas.width = window.innerWidth;
+            oscCanvas.height = window.innerHeight;
+        }
+        resizeOscCanvas();
+        window.onresize = resizeOscCanvas;
+
+        function drawCircularOscilloscope(timeDataArray) {
+            oscCtx.clearRect(0, 0, oscCanvas.width, oscCanvas.height);
+
+            const centerX = oscCanvas.width / 2;
+            const centerY = oscCanvas.height / 2;
+            const baseRadius = Math.min(oscCanvas.width, oscCanvas.height) * 0.35;
+            const amplitude = baseRadius * 0.5;
+
+            const bufferLength = timeDataArray.length;
+            const points = [];
+
+            for (let i = 0; i < bufferLength; i++) {
+                const normalizedIndex = i / bufferLength;
+                const angle = normalizedIndex * Math.PI * 2;
+                const v = (timeDataArray[i] - 128) / 128.0;
+                const radius = baseRadius + v * amplitude;
+
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+
+                points.push({ x, y });
+            }
+
+            oscCtx.lineWidth = 2;
+            oscCtx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+            oscCtx.shadowBlur = 12;
+            oscCtx.shadowColor = "#ffffff";
+
+            oscCtx.beginPath();
+            points.forEach((p, i) => {
+                if (i === 0) {
+                    oscCtx.moveTo(p.x, p.y);
+                } else {
+                    oscCtx.lineTo(p.x, p.y);
+                }
+            });
+            oscCtx.closePath();
+            oscCtx.stroke();
+        }
+
+        // ========================
         // PARTÍCULAS GRANDES EN EL FONDO
         // ========================
-        const canvas = document.getElementById("particlesCanvas");
-        const ctx = canvas.getContext("2d");
+        const particlesCanvas = document.getElementById("particlesCanvas");
+        const particlesCtx = particlesCanvas.getContext("2d");
 
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        function resizeParticlesCanvas() {
+            particlesCanvas.width = window.innerWidth;
+            particlesCanvas.height = window.innerHeight;
         }
-        resizeCanvas();
-        window.onresize = resizeCanvas;
-
-        let particleIntensity = 0.05;
+        resizeParticlesCanvas();
+        window.onresize = () => {
+            resizeOscCanvas();
+            resizeParticlesCanvas();
+        };
 
         const particles = [];
         const numParticles = 55;
         for (let i = 0; i < numParticles; i++) {
             particles.push({
-                x: Math.random() * canvas.width,
-                y: canvas.height + Math.random() * 100,
+                x: Math.random() * particlesCanvas.width,
+                y: particlesCanvas.height + Math.random() * 100,
                 vx: (Math.random() - 0.5) * 0.8,
                 vy: -(Math.random() * 1 + 0.5),
                 radius: Math.random() * 7 + 8,
@@ -325,7 +395,7 @@
         }
 
         function animateParticles() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particlesCtx.clearRect(0, 0, particlesCanvas.width, particlesCanvas.height);
 
             particles.forEach(p => {
                 const speedBoost = particleIntensity * 5;
@@ -335,18 +405,18 @@
                 p.y += p.vy * (1 + speedBoost * 0.6);
 
                 if (p.y < -30) {
-                    p.y = canvas.height + 30;
-                    p.x = Math.random() * canvas.width;
+                    p.y = particlesCanvas.height + 30;
+                    p.x = Math.random() * particlesCanvas.width;
                 }
 
-                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.x < 0 || p.x > particlesCanvas.width) p.vx *= -1;
 
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.radius * (1 + sizeBoost), 0, Math.PI * 2);
-                ctx.fillStyle = p.color;
-                ctx.shadowBlur = 30 * (1 + particleIntensity * 2);
-                ctx.shadowColor = p.color;
-                ctx.fill();
+                particlesCtx.beginPath();
+                particlesCtx.arc(p.x, p.y, p.radius * (1 + sizeBoost), 0, Math.PI * 2);
+                particlesCtx.fillStyle = p.color;
+                particlesCtx.shadowBlur = 30 * (1 + particleIntensity * 2);
+                particlesCtx.shadowColor = p.color;
+                particlesCtx.fill();
             });
 
             requestAnimationFrame(animateParticles);
