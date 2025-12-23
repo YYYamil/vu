@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Espectro Winamp - Video Flotante + Partículas Grandes</title>
+    <style>
+        body {
+            background-color: #000;
+            margin: 0;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(8px);
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 18px;
+            background: #111;
+            color: #0f0;
+            border: 2px solid #0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: #0f0;
+            color: #000;
+        }
+
+        /* Modo Día: colores más apagados */
+        body.day-mode .bar {
+            filter: brightness(0.7) saturate(0.8);
+        }
+
+        /* Modo Noche: colores brillantes */
+        .bar {
+            filter: brightness(1.2) saturate(1.5);
+            box-shadow: 0 0 15px rgba(0,255,0,0.7);
+        }
+
+        .vu-container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            position: relative;
+        }
+
+        .vu-meter {
+            position: relative;
+            width: 100%;
+            height: 90vh;
+            background: #000;
+        }
+
+        .bars {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            gap: 8px;
+            padding: 0 30px;
+            box-sizing: border-box;
+            z-index: 3;
+        }
+
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #008000, #00ff00);
+            align-self: flex-end;
+            transition: height 0.06s ease-out;
+            position: relative;
+            height: 0;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .peak {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: #ffff00;
+            box-shadow: 0 0 15px #ffff00, 0 0 30px #ffaa00;
+            border-radius: 2px;
+            opacity: 0;
+            transition: bottom 0.8s ease-out, opacity 0.4s ease;
+        }
+
+        .peak.visible {
+            opacity: 1;
+        }
+
+        /* Canvas para partículas (debajo de las barras) */
+        #particlesCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Video flotante en esquina superior derecha */
+        #pipVideo {
+            position: absolute;
+            top: 80px;                    /* Debajo de los botones */
+            left: 50%;
+            transform: translateX(-50%);  /* Centrado horizontal perfecto */
+            width: 600px;                 /* Más ancho para que se vea bien en el centro */
+            height: 338px;                /* Ratio 16:9 */
+            border: 4px solid #0f0;
+            border-radius: 16px;
+            box-shadow: 0 0 30px rgba(0,255,0,0.9);
+            z-index: 9;
+            display: none;
+            object-fit: cover;
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="startBtn">Capturar Audio + Video</button>
+        <button id="themeBtn">Modo Día</button>
+    </div>
+
+    <video id="pipVideo" playsinline muted></video>
+
+    <div class="vu-container">
+        <canvas id="particlesCanvas"></canvas>
+        <div class="vu-meter">
+            <div class="bars" id="spectrumBars"></div>
+        </div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('startBtn');
+        const themeBtn = document.getElementById('themeBtn');
+        const pipVideo = document.getElementById('pipVideo');
+        let audioContext, analyser, source;
+        let bars = [], peaks = [], peakValues = [];
+        const numBands = 7;
+        const sensitivity = 0.8;
+
+        const bandRanges = [
+            { low: 4000, high: 12000 },
+            { low: 2000, high: 4000 },
+            { low: 600,  high: 2000 },
+            { low: 300,  high: 600 },
+            { low: 150,  high: 300 },
+            { low: 60,   high: 150 },
+            { low: 20,   high: 60 }
+        ];
+
+        function createBars() {
+            const container = document.getElementById('spectrumBars');
+            for (let i = 0; i < numBands; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                container.appendChild(bar);
+                bars.push(bar);
+
+                const peak = document.createElement('div');
+                peak.className = 'peak';
+                bar.appendChild(peak);
+                peaks.push(peak);
+                peakValues.push(0);
+            }
+        }
+        createBars();
+
+        themeBtn.addEventListener('click', () => {
+            document.body.classList.toggle('day-mode');
+            themeBtn.textContent = document.body.classList.contains('day-mode') ? 'Modo Noche' : 'Modo Día';
+        });
+
+        startBtn.addEventListener('click', async () => {
+            if (audioContext) {
+                alert('Ya está capturando. Recarga la página para cambiar fuente.');
+                return;
+            }
+
+            startBtn.disabled = true;
+            startBtn.textContent = 'Capturando...';
+
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true
+                });
+
+                // Mostrar video en vivo en la ventana flotante
+                pipVideo.srcObject = stream;
+                pipVideo.muted = true; // Evita eco/duplicado
+                pipVideo.play();
+                pipVideo.style.display = 'block';
+
+                // Analizar solo el audio
+                audioContext = new AudioContext();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 8192;
+                analyser.smoothingTimeConstant = 0.6;
+
+                source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                requestAnimationFrame(draw);
+            } catch (err) {
+                alert('Captura cancelada. Marca "Compartir audio".');
+                startBtn.disabled = false;
+                startBtn.textContent = 'Capturar Audio + Video';
+            }
+        });
+
+        function calculateCustomBands(dataArray, bufferLength) {
+            const bands = [];
+            const nyquist = audioContext.sampleRate / 2;
+            for (let i = 0; i < numBands; i++) {
+                const { low, high } = bandRanges[i];
+                const lowBin = Math.floor(low * bufferLength / nyquist);
+                const highBin = Math.floor(high * bufferLength / nyquist);
+                let sum = 0, count = 0;
+                for (let bin = Math.max(lowBin, 0); bin < Math.min(highBin, bufferLength); bin++) {
+                    sum += dataArray[bin];
+                    count++;
+                }
+                let avg = count > 0 ? sum / count : 0;
+                avg *= sensitivity;
+                if (i <= 1) avg *= 1.5;
+                bands.push(Math.min(avg, 255));
+            }
+            return bands;
+        }
+
+        function draw() {
+            if (!analyser) return;
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+
+            const bands = calculateCustomBands(dataArray, analyser.frequencyBinCount);
+            updateSpectrum(bands);
+
+            requestAnimationFrame(draw);
+        }
+
+        function updateSpectrum(bands) {
+            const maxHeight = document.querySelector('.vu-meter').clientHeight;
+            let bassLevel = (bands[5] + bands[6]) / 2 / 255;
+            bassLevel = Math.max(bassLevel, 0.05);
+
+            particleIntensity = bassLevel;
+
+            for (let i = 0; i < numBands; i++) {
+                const height = (bands[i] / 255) * maxHeight;
+                bars[i].style.height = height + 'px';
+
+                if (i <= 1) {
+                    bars[i].style.background = 'linear-gradient(to top, #4444ff, #8888ff)';
+                } else if (i >= 5) {
+                    bars[i].style.background = 'linear-gradient(to top, #880000, #ff4444)';
+                } else {
+                    bars[i].style.background = 'linear-gradient(to top, #008800, #00ff00)';
+                }
+
+                if (height > peakValues[i]) {
+                    peakValues[i] = height;
+                    peaks[i].classList.add('visible');
+                } else {
+                    peakValues[i] = Math.max(peakValues[i] - 8, 0);
+                }
+                peaks[i].style.bottom = peakValues[i] + 'px';
+            }
+        }
+
+        // ========================
+        // PARTÍCULAS GRANDES EN EL FONDO
+        // ========================
+        const canvas = document.getElementById("particlesCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.onresize = resizeCanvas;
+
+        let particleIntensity = 0.05;
+
+        const particles = [];
+        const numParticles = 55;
+        for (let i = 0; i < numParticles; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: canvas.height + Math.random() * 100,
+                vx: (Math.random() - 0.5) * 0.8,
+                vy: -(Math.random() * 1 + 0.5),
+                radius: Math.random() * 7 + 8,
+                color: `hsla(${170 + Math.random() * 140}, 85%, 65%, 0.85)`
+            });
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(p => {
+                const speedBoost = particleIntensity * 5;
+                const sizeBoost = particleIntensity * 2;
+
+                p.x += p.vx * (1 + speedBoost);
+                p.y += p.vy * (1 + speedBoost * 0.6);
+
+                if (p.y < -30) {
+                    p.y = canvas.height + 30;
+                    p.x = Math.random() * canvas.width;
+                }
+
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius * (1 + sizeBoost), 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.shadowBlur = 30 * (1 + particleIntensity * 2);
+                ctx.shadowColor = p.color;
+                ctx.fill();
+            });
+
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+    </script>
+</body>
+</html>
